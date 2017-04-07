@@ -1,0 +1,131 @@
+-- 子查询可以解决的经典问题
+-- 行号
+-- create table sales(
+-- 	empid varchar(10) not null,
+--     mgrid varchar(10) not null,
+--     qty int not null,
+--     primary key (empid)
+-- );
+-- insert into sales values('A','Z',300);
+-- insert into sales values('B','X',100);
+-- insert into sales values('C','X',200);
+-- insert into sales values('D','Y',200);
+-- insert into sales values('E','Z',250);
+-- insert into sales values('F','Z',300);
+-- insert into sales values('G','X',100);
+-- insert into sales values('H','Y',150);
+-- insert into sales values('I','X',250);
+-- insert into sales values('J','Z',100);
+-- insert into sales values('K','Y',200);
+
+-- select * from sales;
+-- 统计某一列的行号问题
+-- select empid ,(select count(*) from sales as T2 where T2.empid <= T1.empid) as row_num from sales as T1; 
+-- 对多个列排序后进行行号统计(不能解决行重复问题)
+-- select empid,qty, (select count(*) from sales as T2 where T2.qty <= T1.qty or T2.empid <= T1.empid) as row_num from sales as T1 order by qty,empid; 
+
+-- 行重复结果测试
+-- create table T(a varchar(10));
+-- 
+-- insert into T select 'X';
+-- insert into T select 'X';
+-- insert into T select 'X';
+-- insert into T select 'Y';
+-- insert into T select 'Y';
+-- insert into T select 'Z';
+-- select a,count(*) as count ,(select count(*) from T as B where B.a < A.a) as smaller from T as A group by a;  -- 小于x的值个数，小于y的个数,小于z的个数
+-- 借助数字辅助表来根据count进行复制(发现a+smaller即行号)
+-- select * from (select a,count(*) as count ,(select count(*) from T as B where B.a < A.a) as smaller from T as A group by a) as C,nums where nums.a <= count;
+-- select C.a,C.count,C.smaller,C.smaller+nums.a from (select a,count(*) as count ,(select count(*) from T as B where B.a<A.a) as smaller from T as A group by a) as C ,nums where nums.a <= count;
+
+-- mysql分区示例
+
+-- create table if not exists user(
+-- 	id int(11) not null auto_increment comment "用户id",
+--     name varchar(50) not null default '' comment '名称',
+--     sex int(1) not null default '0' comment '0为男,1为女',
+--     primary key(id)
+-- )engine=MyISAM default charset=utf8 auto_increment=1
+-- partition by range(id)(
+-- 	partition p0 values less than (3),
+--     partition p1 values less than (6),
+--     partition p2 values less than (9),
+--     partition p3 values less than (12),
+--     partition p4 values less than maxvalue
+-- );
+-- insert into user(name,sex) value("tank",0),("zhang",1),("ying",1),("张",'1'),("应",0),("test1",1),("tank2",1),
+-- 								('tank1',1),('test2',1),('test3',1),('test4',1),('test5',1),('tank3',1),('tank4',1),
+-- 								('tank5',1),('tank6',1),('tank7',1),('tank8',1),('tank9',1),('tank10',1),('tank11',1),
+--                                 ('tank12',1),('tank13',1),('tank21',1),('tank42',1);
+-- select count(id) as count from user;
+
+-- 对现有的表进行分区，并且会按照规则自动的将表中的数据分配到相应的分区。
+-- alter table aa partition by range(id)(
+-- 	partition p1 values less than (1),
+--     partition p2 values less than (5),
+--     partition p3 values less than maxvalue
+-- );
+
+-- 最小行号问题
+-- drop table if exists x;
+-- create table x (
+-- 	a int unsigned primary key,
+--     b char(1) not null
+-- )engine=InnoDB;
+-- insert into x values(3,'a'),(4,'b'),(6,'c'),(7,'d');
+-- insert into x values(1,'z'),(2,'x');
+-- select 
+--     case when not exists (select a from x where a=1) then 1
+--     else
+-- 		(select min(a)+1 as missing from x as A where not exists (
+-- 			select a from x as B where A.a+1 = B.a
+--             ))
+-- 	end as missing
+
+-- 补齐最小的缺失值
+-- insert into x 
+-- select 
+-- 	case when not exists (select a from x where a=1) then 1
+--     else 
+-- 		(select min(a)+1 as missing from x as A where not exists (select a from x as B where B.a = A.a+1))
+-- 	end as missing,'a';
+
+-- 补齐联系的缺失值问题
+-- create table g(a int);
+-- insert into g select 1;
+-- insert into g select 2;
+-- insert into g select 3;
+-- insert into g select 100;
+-- insert into g select 101;
+-- insert into g select 103;
+-- insert into g select 104;
+-- insert into g select 105;
+-- insert into g select 106;
+
+-- 找start_range end_range
+-- select a+1 as start_range,
+--         (select min(a)-1 from g as C where C.a > A.a) as end_range 
+-- 		from g as A where not exists 
+--         (select a from g as B where A.a + 1 = B.a) and a < (select max(a) from g);
+
+-- 另一种方法是通过连续匹配来实现的(当差值为１的时候就为连续的值)
+-- select cur+1 as start_range, next-1 as end_range from
+-- 	(select a as cur, (select min(a) from g as B where B.a>A.a) as next from g as A) 
+--     as C
+--     where next-cur>1;
+
+-- 第三种方法是得到一个第三方的列，然后来进行筛选
+-- select min(a) as start_range,max(a) as end_range from 
+-- 	(select a,(select min(a) from g as A where not exists (select a from g as B where A.a+1=B.a) and A.a >= C.a ) as max from g as C)
+-- 	as D
+--     group by max;
+-- 以上方案大量使用子查询，性能值得商榷，还是使用行号的方法比较有效率.
+-- select min(a) start_range,max(a) end_range
+-- 	from (
+-- 		select a,rn,a-rn as diff from(
+-- 			select a, @a:=@a+1 rn from g ,(select @a:=0) as a 
+--         ) as b
+--     ) as c
+-- group by diff;
+        
+        
