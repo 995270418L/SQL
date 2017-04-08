@@ -1,0 +1,6 @@
+-- 聚合函数
+-- group_concat
+-- create table z(a int,b int);
+-- insert into z values(1,200),(1,100),(1,100),(2,400),(2,500),(3,null);
+-- select a,group_concat( b order by b desc separator ':') from z group by a
+-- explain select customer_id from orders group by customer_id;
