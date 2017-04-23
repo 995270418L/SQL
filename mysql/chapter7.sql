@@ -1,0 +1,26 @@
+-- 游标
+-- 游标其实是一种面向过程的操作，每行每行的操作，而mysql的各种函数是面向集合的操作，具体体现为操作所需时间不同。大数据量的时候可以酌情使用
+-- 游标使用示例
+-- delimiter &&
+-- create procedure cur_demo()
+-- begin
+-- 	declare done int default 0;
+--     declare _emp_no int;
+--     declare _dept_no varchar(10);
+--     -- 定义游标
+--     declare cur1 cursor for select emp_no,dept_no from dept_emp;
+--     declare continue handler for not found set done = 1;
+--     -- 打开游标
+--     open cur1;
+--     -- 从游标读取数据
+--     read_loop: loop
+--     fetch cur1 into _emp_no,_dept_no;
+--     if done then 
+-- 		leave read_loop;
+--     end if;
+--     end loop;
+--     -- 关闭游标
+--     close cur1;
+-- end &&
+-- 
+-- delimiter ;
